@@ -5,7 +5,7 @@
 - `id (uuid, pk)`
 - `created_at`
 
-### `folders`
+### `mosaics`
 
 - `id (uuid, pk)`
 - `user_id (fk users.id)`
@@ -21,11 +21,11 @@
 - `created_at`
 - (권장) unique(user_id, name)
 
-### `clips` ✅ 핵심
+### `tesserae` ✅ 핵심
 
 - `id (uuid, pk)`
 - `user_id`
-- `folder_id (fk folders.id, nullable)` ← MVP에선 1개 폴더로 단순화
+- `mosaic_id (fk mosaics.id, nullable)` ← MVP에선 1개 Mosaic으로 단순화
 - `source_url (text, nullable)`
 - `source_domain (text, nullable)`
 - `text (text, nullable)` ← 선택 텍스트/짧은 메모용
@@ -38,11 +38,11 @@
 - `last_error (text, nullable)`
 - `created_at`, `updated_at`
 
-### `clip_tags` (N:M)
+### `tessera_tags` (N:M)
 
-- `clip_id (fk clips.id)`
+- `tessera_id (fk tesserae.id)`
 - `tag_id (fk tags.id)`
-- `pk(clip_id, tag_id)`
+- `pk(tessera_id, tag_id)`
 
 ---
 
@@ -50,16 +50,16 @@
 
 ### 로컬 DB(예: SQLite)
 
-- `local_clips` (또는 clips를 로컬에도 동일 스키마로)
+- `local_tesserae` (또는 tesserae를 로컬에도 동일 스키마로)
 - `sync_queue` ✅ 권장
-    - `id (uuid)`
-    - `op (text)` : `create_clip | upload_thumb | update_clip | delete_clip`
-    - `clip_id`
-    - `payload_json (text)`
-    - `retry_count (int)`
-    - `last_error (text)`
-    - `next_retry_at (timestamp)`
-    - `created_at`
+  - `id (uuid)`
+  - `op (text)` : `create_tessera | upload_thumb | update_tessera | delete_tessera`
+  - `tessera_id`
+  - `payload_json (text)`
+  - `retry_count (int)`
+  - `last_error (text)`
+  - `next_retry_at (timestamp)`
+  - `created_at`
 
 **규칙**
 
@@ -75,17 +75,17 @@
 
 - bucket: `thumbs`
 - path:
-    - `userId/clipId/thumb.jpg`
-    - (WebP면) `userId/clipId/thumb.webp`
+  - `userId/tesseraId/thumb.jpg`
+  - (WebP면) `userId/tesseraId/thumb.webp`
 
 ### 3-4. 접근 권한(“타인 공유 금지” 요구 반영)
 
 - 기본: **Private bucket** (유저 본인만 접근)
 - 앱에서 이미지 보여줄 때:
-    - (Supabase 기준) **signed URL 발급** 또는 **권한 있는 클라이언트 SDK로 fetch**
+  - (Supabase 기준) **signed URL 발급** 또는 **권한 있는 클라이언트 SDK로 fetch**
 - 캐시 전략:
-    - signed URL 만료는 적당히(예: 1시간~24시간)
-    - 클라이언트 캐시(메모리/디스크)로 스크롤 성능 확보
+  - signed URL 만료는 적당히(예: 1시간~24시간)
+  - 클라이언트 캐시(메모리/디스크)로 스크롤 성능 확보
 
 ### 3-5. 부록
 
@@ -96,9 +96,9 @@
 ### MVP 정책(단순)
 
 - URL만 들어오면:
-    - `thumb_path` 없이 저장(텍스트/도메인 카드)
-    - `status=ready` (이미지가 없는 ready)
+  - `thumb_path` 없이 저장(텍스트/도메인 카드)
+  - `status=ready` (이미지가 없는 ready)
 
 ### 개선 정책(추천: FastAPI 메타 추출)
 
-- URL 입력 → 서버가 OG 이미지/제목 가져와 썸네일 생성 후 `clips.thumb_*` 갱신
+- URL 입력 → 서버가 OG 이미지/제목 가져와 썸네일 생성 후 `tesserae.thumb_*` 갱신

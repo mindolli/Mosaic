@@ -57,7 +57,7 @@
 - “이 기능은 여기처럼”:
   - 저장 UX: “저장은 Pocket처럼 **공유 → 저장 화면 → 태그/폴더 선택 → 저장**”
   - 홈 UI: “홈은 Pinterest처럼 **이미지 중심 Masonry 그리드**”
-  - 폴더: “폴더는 Pinterest 보드처럼 **커버+이름+개수**로 표시”
+  - Mosaic: “Mosaic은 Pinterest 보드처럼 **커버+이름+개수**로 표시”
   - 태그: “태그 입력은 Notion처럼 **자동완성 + 최근 태그 추천**”
   - 검색: “검색은 Spotlight처럼 **입력 즉시 결과 필터링**”
 - “이건 절대 안 함/싫음”:
@@ -76,7 +76,7 @@
 - Must 기능 리스트(최대 5~7개 추천)
   - F1: 클라우드 지원
   - F2: 공유로 데이터(이미지, 짧은 텍스트) 업로드
-  - F3: 업로드와 동시에 폴더, tag 선택 시스템
+  - F3: 업로드와 동시에 Mosaic, tag 선택 시스템
 - 각 기능의 “완료 조건(Definition of Done)”
   - F1 완료 조건:
   - F2 완료 조건:
@@ -92,14 +92,14 @@
 ### 5) 사용자 흐름(User Flow)
 
 - 시작 → 목표 달성까지 단계:
-  1. 첫 실행: 로그인/게스트 선택 → 기본 폴더 1개 자동 생성
+  1. 첫 실행: 로그인/게스트 선택 → 기본 Mosaic 1개 자동 생성
   2. 메인 진입: 홈 그리드(비어있으면 가이드 카드)
-  3. 핵심 행동: 외부에서 공유 → 저장 화면에서 폴더/태그 선택 → 저장
+  3. 핵심 행동: 외부에서 공유 → 저장 화면에서 Mosaic/태그 선택 → 저장
   4. 결과 확인: 홈에 카드 생성 → 탭하면 상세에서 원문 열기/태그 수정
 - 자주 일어나는 예외 케이스:
   - Empty(데이터 없음)
-    - 문구: “아직 저장된 클립이 없어요. 웹에서 이미지/문장을 공유해보세요.”
-    - 버튼: “저장 방법 보기” / “예시 클립 추가(선택)”
+    - 문구: “아직 저장된 Tessera가 없어요. 웹에서 이미지/문장을 공유해보세요.”
+    - 버튼: “저장 방법 보기” / “예시 Tessera 추가(선택)”
     - 가이드: “Safari/Chrome → 공유 → [앱 이름]”
   - 네트워크 오류
     - 배너: “동기화 실패. 오프라인으로 저장되고 연결되면 자동 업로드돼요.”
@@ -115,15 +115,15 @@
 - 화면 리스트(예: 5~10개):
   - S0: 온보딩/로그인(게스트 포함)
   - S1: 홈(전체 피드, 그리드)
-  - S2: 저장(공유로 진입, 폴더/태그 선택)
-  - S3: 폴더(보드) 목록/관리
-  - S4: 클립 상세(복기/원문 열기/편집)
+  - S2: 저장(공유로 진입, Mosaic/태그 선택)
+  - S3: Mosaic(보드) 목록/관리
+  - S4: Tessera 상세(복기/원문 열기/편집)
   - S5: 검색/필터(텍스트/태그/도메인)
   - S6: 설정(동기화/계정/기본값)
 
 각 화면별로 아래 폼 반복:
 
-- 폴더: 최근 3개 + 검색
+- Mosaic: 최근 3개 + 검색
 - 태그: 최근 8개 칩 + 입력
 - 장점: 저장 속도 최상
   - 목적(이 화면에서 유저가 해야 하는 것):
@@ -146,13 +146,13 @@
 - `id (uuid, pk)`
 - `created_at`
 
-### `folders`
+### `mosaics`
 
 - `id (uuid, pk)`
 - `user_id (fk users.id)`
 - `name (text)`
 - `created_at`
-- (옵션) `cover_clip_id (uuid)`
+- (옵션) `cover_tessera_id (uuid)`
 
 ### `tags`
 
@@ -162,11 +162,11 @@
 - `created_at`
 - (권장) unique(user_id, name)
 
-### `clips` ✅ 핵심
+### `tesserae` ✅ 핵심
 
 - `id (uuid, pk)`
 - `user_id`
-- `folder_id (fk folders.id, nullable)` ← MVP에선 1개 폴더로 단순화
+- `mosaic_id (fk mosaics.id, nullable)` ← MVP에선 1개 Mosaic으로 단순화
 - `source_url (text, nullable)`
 - `source_domain (text, nullable)`
 - `text (text, nullable)` ← 선택 텍스트/짧은 메모용
@@ -179,11 +179,11 @@
 - `last_error (text, nullable)`
 - `created_at`, `updated_at`
 
-### `clip_tags` (N:M)
+### `tessera_tags` (N:M)
 
-- `clip_id (fk clips.id)`
+- `tessera_id (fk tesserae.id)`
 - `tag_id (fk tags.id)`
-- pk(clip_id, tag_id)
+- pk(tessera_id, tag_id)
 
 ---
 
@@ -191,11 +191,11 @@
 
 ### 로컬 DB(예: SQLite)
 
-- `local_clips` (또는 clips를 로컬에도 동일 스키마로)
+- `local_tesserae` (또는 tesserae를 로컬에도 동일 스키마로)
 - `sync_queue` ✅ 권장
   - `id (uuid)`
-  - `op (text)` : `create_clip | upload_thumb | update_clip | delete_clip`
-  - `clip_id`
+  - `op (text)` : `create_tessera | upload_thumb | update_tessera | delete_tessera`
+  - `tessera_id`
   - `payload_json (text)`
   - `retry_count (int)`
   - `last_error (text)`
@@ -214,8 +214,8 @@
 
 - bucket: `thumbs`
 - path:
-  - `userId/clipId/thumb.jpg`
-  - (WebP면) `userId/clipId/thumb.webp`
+  - `userId/tesseraId/thumb.jpg`
+  - (WebP면) `userId/tesseraId/thumb.webp`
 
 ### 7-4. 접근 권한(“타인 공유 금지” 요구 반영)
 
@@ -236,7 +236,7 @@
 
 ### 개선 정책(추천: FastAPI 메타 추출)
 
-- URL 입력 → 서버가 OG 이미지/제목 가져와 썸네일 생성 후 `clips.thumb_*` 갱신
+- URL 입력 → 서버가 OG 이미지/제목 가져와 썸네일 생성 후 `tesserae.thumb_*` 갱신
 
 ---
 
