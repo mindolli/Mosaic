@@ -7,4 +7,7 @@ const config = getDefaultConfig(__dirname, {
   isCSSEnabled: true,
 });
 
+// Add support for .mjs files (used by supabase-js)
+config.resolver.sourceExts.push('mjs');
+
 module.exports = config;
