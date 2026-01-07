@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Mosaic_tmp",
-    "slug": "Mosaic_tmp",
+    "name": "Mosaic",
+    "slug": "mosaic",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "mosaic",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/images/splash.png",
