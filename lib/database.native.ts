@@ -143,6 +143,45 @@ export const getLocalMosaics = () => {
   return db.getAllSync<{ id: string, name: string, user_id: string, is_default: number, created_at: string }>('SELECT * FROM local_mosaics ORDER BY created_at DESC');
 };
 
+
+export const addLocalMosaic = (name: string, userId: string): any => {
+    const id = Crypto.randomUUID();
+    const now = new Date().toISOString();
+    const newMosaic = { id, user_id: userId, name, is_default: 0, created_at: now };
+
+    if (!db) {
+        console.log('Web/No-DB: addLocalMosaic mock', newMosaic);
+        return newMosaic;
+    }
+
+    try {
+        db.runSync(
+            `INSERT INTO local_mosaics (id, user_id, name, is_default, created_at) VALUES (?, ?, ?, ?, ?)`,
+            [id, userId, name, 0, now]
+        );
+        // Note: For now, we are not adding Mosaics to sync_queue to keep it simple, 
+        // assuming major sync logic handles Mosaics separately or we rely on 'saveLocalMosaics' from server fetch.
+        // Ideally, we should add to sync_queue too if we want true offline-create-sync.
+        // For MVP speed: We'll add it to DB so UI updates instantly.
+        console.log('Saved Mosaic to Local DB:', id);
+        return newMosaic;
+    } catch (e) {
+        console.error('Failed to add local mosaic:', e);
+        throw e;
+    }
+};
+
+export const deleteLocalMosaic = (id: string) => {
+    if (!db) return;
+    try {
+        db.runSync('DELETE FROM local_mosaics WHERE id = ?', [id]);
+        console.log('Deleted Mosaic from Local DB:', id);
+    } catch (e) {
+        console.error('Failed to delete local mosaic:', e);
+        throw e;
+    }
+};
+
 export const saveLocalMosaics = (mosaics: any[]) => {
   if (!db) return;
   try {

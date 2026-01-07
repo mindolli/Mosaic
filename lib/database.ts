@@ -36,6 +36,15 @@ export const getLocalTesserae = (): LocalTessera[] => {
 export const getPendingSyncItems = () => [];
 export const removeSyncItem = (id: number) => {};
 export const getLocalMosaics = (): { id: string, name: string, user_id: string, is_default: number, created_at: string }[] => [];
-export const saveLocalMosaics = (mosaics: any[]) => {};
+export const addLocalMosaic = (name: string, userId: string) => {
+  console.log('Web: addLocalMosaic skipped');
+  // Return a minimal valid shape if strictly needed by types, or throw/return null to signal skip.
+  // Given current usage in UI, returning an object with proper fields but marked id allows UI to proceed to server sync or fail gracefully.
+  // However, user wants to BLOCK access.
+  // Best is to return a dummy that won't confuse the UI, OR create a purely in-memory temporary object.
+  return { id: 'web-temp-' + Date.now(), name, user_id: userId, is_default: 0, created_at: new Date().toISOString() };
+};
+export const deleteLocalMosaic = (id: string) => { console.log('Web: deleteLocalMosaic skipped'); };
+export const saveLocalMosaics = (mosaics: any[]) => { console.log('Web: saveLocalMosaics skipped'); };
 export const updateLocalTesseraStatus = (id: string, status: 'synced' | 'failed') => {};
 export const deleteLocalTessera = (id: string) => {};

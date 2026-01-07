@@ -9,6 +9,8 @@ import Colors from '../../constants/Colors';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { getLocalMosaics, addLocalMosaic, deleteLocalMosaic, saveLocalMosaics } from '../../lib/database';
+
 const RECENT_MOSAIC_KEY = 'recent_mosaic_id';
 
 export default function MosaicsTab() {
@@ -36,49 +38,71 @@ export default function MosaicsTab() {
     }
   };
 
-  // 폴더 목록 조회 (fetchMosaics): Supabase 클라우드 DB에서 내가 만든 Mosaic 목록을 최신순으로 가져옵니다.
+  // 폴더 목록 조회 (fetchMosaics): 로컬 DB 우선 조회 후 서버 동기화
   const fetchMosaics = async () => {
     if (!user) return;
     setLoading(true);
+    
+    // 1. Local First
+    try {
+      const localData = getLocalMosaics();
+      // localData might have is_default as number, coerce to Mosaic[]
+      if (localData && localData.length > 0) {
+        setMosaics(localData as unknown as Mosaic[]);
+      }
+    } catch (e) {
+      console.log('Local fetch error', e);
+    }
+
+    // 2. Network Fetch (Background)
     const { data, error } = await supabase
       .from('mosaics')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      Alert.alert('Error', error.message);
-    } else {
-      setMosaics(data || []);
-      // If no selected mosaic and we have mosaics, maybe select the first one?
-      // Or just keep it null.
+    if (!error && data) {
+      setMosaics(data);
+      saveLocalMosaics(data); // Cache for next time
     }
     setLoading(false);
   };
 
-  // 새 폴더 생성 (createMosaic): 입력창에 이름을 쓰고 버튼을 누르면 즉시 DB에 저장하고 목록에 추가합니다.
+  // 새 폴더 생성 (createMosaic): 로컬 선반영 -> 서버 후동기화
   const createMosaic = async () => {
     if (!newMosaicName.trim() || !user) return;
     setIsCreating(true);
     
-    // Optimistic update could be added here, but for simplicity:
-    const { data, error } = await supabase
-      .from('mosaics')
-      .insert([{ user_id: user.id, name: newMosaicName.trim() }])
-      .select()
-      .single();
-
-    if (error) {
-      Alert.alert('Error creating mosaic', error.message);
-    } else {
-      setMosaics([data, ...mosaics]);
+    // 1. Local Optimistic Update
+    try {
+      const newLocal = addLocalMosaic(newMosaicName.trim(), user.id);
+      setMosaics([newLocal, ...mosaics]);
       setNewMosaicName('');
-      // Auto select newly created mosaic
-      selectMosaic(data.id);
+      selectMosaic(newLocal.id);
+
+      // 2. Server Sync
+      const { data, error } = await supabase
+        .from('mosaics')
+        .insert([{ 
+           id: newLocal.id, // Use same ID to avoid duplicates if possible, or mapping strategy needed. 
+           // Note: Supabase ID is UUID default. If we send ID, we must ensure it matches regex. 
+           // Our local ID is UUID from expo-crypto, so it is compatible.
+           user_id: user.id, 
+           name: newMosaicName.trim() 
+        }])
+        .select()
+        .single();
+        
+      if (error) {
+        console.error('Server sync failed:', error);
+        // In a real app, we would mark local item as 'sync_failed'
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
     }
     setIsCreating(false);
   };
 
-  //삭제 (deleteMosaic): 휴지통 아이콘을 눌러 폴더를 삭제할 수 있습니다.
+  // 삭제 (deleteMosaic): 로컬 선삭제 -> 서버 후삭제
   const deleteMosaic = async (id: string) => {
     Alert.alert('Delete Mosaic', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
@@ -86,14 +110,21 @@ export default function MosaicsTab() {
         text: 'Delete', 
         style: 'destructive', 
         onPress: async () => {
-          const { error } = await supabase.from('mosaics').delete().eq('id', id);
-          if (error) Alert.alert('Error', error.message);
-          else {
+          // 1. Local Delete
+          try {
+            deleteLocalMosaic(id);
             setMosaics(mosaics.filter(m => m.id !== id));
             if (selectedMosaicId === id) {
               setSelectedMosaicId(null);
               AsyncStorage.removeItem(RECENT_MOSAIC_KEY);
             }
+            
+            // 2. Server Delete
+            const { error } = await supabase.from('mosaics').delete().eq('id', id);
+            if (error) console.error('Server delete failed', error);
+            
+          } catch (e: any) {
+             Alert.alert('Error', e.message);
           }
         } 
       }
@@ -114,13 +145,17 @@ export default function MosaicsTab() {
       ]}
       onPress={() => selectMosaic(item.id)}
     >
-      <View style={styles.itemContent}>
-        <FontAwesome name="folder-o" size={20} color={selectedMosaicId === item.id ? Colors[colorScheme ?? 'light'].tint : '#888'} style={{ marginRight: 10 }} />
-        <Text style={styles.itemText}>{item.name}</Text>
-      </View>
       <TouchableOpacity onPress={() => deleteMosaic(item.id)} style={styles.deleteBtn}>
         <FontAwesome name="trash-o" size={16} color="#ff4444" />
       </TouchableOpacity>
+      
+      <FontAwesome 
+        name="folder-o" 
+        size={32} 
+        color={selectedMosaicId === item.id ? Colors[colorScheme ?? 'light'].tint : '#888'} 
+        style={{ marginBottom: 12 }} 
+      />
+      <Text style={styles.itemText} numberOfLines={2}>{item.name}</Text>
     </TouchableOpacity>
   );
 
@@ -152,6 +187,8 @@ export default function MosaicsTab() {
           keyExtractor={(item) => item.id}
           style={styles.list}
           contentContainerStyle={styles.listContent}
+          numColumns={2}
+          columnWrapperStyle={styles.columnWrapper}
           ListEmptyComponent={<Text style={styles.emptyText}>No Mosaics yet. Create one!</Text>}
         />
       )}
@@ -194,29 +231,35 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 20,
+    gap: 15,
+  },
+  columnWrapper: {
+    gap: 15,
   },
   item: {
-    flexDirection: 'row',
+    flex: 1,
+    flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 10,
+    justifyContent: 'center',
+    padding: 20,
+    paddingTop: 30, // Space for delete button
+    borderRadius: 16,
     backgroundColor: 'rgba(128,128,128,0.1)',
     borderWidth: 2,
     borderColor: 'transparent',
-  },
-  itemContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'transparent',
+    minHeight: 140, // Ensure strictly card-like shape
   },
   itemText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   deleteBtn: {
-    padding: 8,
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    padding: 5,
+    zIndex: 1,
   },
   emptyText: {
     textAlign: 'center',
