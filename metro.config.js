@@ -9,5 +9,6 @@ const config = getDefaultConfig(__dirname, {
 
 // Add support for .mjs files (used by supabase-js)
 config.resolver.sourceExts.push('mjs');
+config.resolver.assetExts.push('wasm');
 
 module.exports = config;

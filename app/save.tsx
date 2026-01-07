@@ -10,6 +10,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useColorScheme } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { addLocalTessera, getLocalMosaics, saveLocalMosaics } from '../lib/database';
 
 const RECENT_MOSAIC_KEY = 'recent_mosaic_id';
 
@@ -63,16 +64,50 @@ export default function SaveScreen() {
   };
 
   const fetchMosaics = async () => {
+    if (!user) return;
+    
+    // 1. Load from Local DB first for instant UI
+    try {
+      const localData = getLocalMosaics();
+      if (localData && localData.length > 0) {
+        // Local DB has 'is_default' as number, Mosaic type might differ but optional is fine
+        setMosaics(localData as unknown as Mosaic[]); 
+        if (!selectedMosaicId) setSelectedMosaicId(localData[0].id);
+      }
+    } catch (e) {
+      // Ignore local fetch error
+    }
+
+    // 2. Fetch from Supabase
     const { data, error } = await supabase
       .from('mosaics')
       .select('*')
       .order('created_at', { ascending: false });
     
     if (!error && data) {
-      setMosaics(data);
-      // 선택된 mosaic이 없으면 첫 번째 선택
-      if (!selectedMosaicId && data.length > 0) {
-        setSelectedMosaicId(data[0].id);
+      if (data.length === 0) {
+        // Mosaic가 없으면 Inbox 자동 생성 (서버)
+        try {
+          const { data: newMosaic, error: createError } = await supabase
+            .from('mosaics')
+            .insert([{ user_id: user.id, name: 'Inbox' }])
+            .select()
+            .single();
+            
+          if (newMosaic) {
+            setMosaics([newMosaic]);
+            saveLocalMosaics([newMosaic]); // Cache new inbox
+            setSelectedMosaicId(newMosaic.id);
+          }
+        } catch (e) {
+          console.error('Auto-create error:', e);
+        }
+      } else {
+        setMosaics(data);
+        saveLocalMosaics(data); // Cache
+        if (!selectedMosaicId) {
+          setSelectedMosaicId(data[0].id);
+        }
       }
     }
     setLoadingMosaics(false);
@@ -88,6 +123,12 @@ export default function SaveScreen() {
       Alert.alert('Error', 'Nothing to save');
       return;
     }
+
+    if (!selectedMosaicId) {
+      Alert.alert('Error', 'Please select a Mosaic to save to.');
+      return;
+    }
+
 
     setIsSaving(true);
 
@@ -106,13 +147,12 @@ export default function SaveScreen() {
       newTessera.text = previewContent;
     }
 
-    const { error } = await supabase.from('tesserae').insert([newTessera]);
-
-    if (error) {
-      Alert.alert('Error', error.message);
-    } else {
+    try {
+      addLocalTessera(newTessera);
       // 저장 성공 → 홈으로 이동
       router.replace('/');
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to save locally');
     }
     setIsSaving(false);
   };
@@ -239,6 +279,17 @@ export default function SaveScreen() {
               ))}
             </ScrollView>
           )}
+        </View>
+
+
+        {/* Debug Info */}
+        <View style={{ padding: 20, opacity: 0.5, backgroundColor: '#f0f0f0', marginTop: 20, borderRadius: 10 }}>
+          <Text style={{ fontSize: 10, fontWeight: 'bold' }}>DEBUG INFO</Text>
+          <Text style={{ fontSize: 10 }}>Params URL: {params.url?.slice(0, 50)}...</Text>
+          <Text style={{ fontSize: 10 }}>Params Text: {params.text?.slice(0, 50)}...</Text>
+          <Text style={{ fontSize: 10 }}>User ID: {user?.id}</Text>
+          <Text style={{ fontSize: 10 }}>Mosaic ID: {selectedMosaicId}</Text>
+          <Text style={{ fontSize: 10 }}>Shared URL State: {sharedUrl?.slice(0, 50)}...</Text>
         </View>
       </ScrollView>
     </View>

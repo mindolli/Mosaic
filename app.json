@@ -22,7 +22,38 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.mosaic.app",
+      "intentFilters": [
+        {
+          "action": "android.intent.action.SEND",
+          "category": [
+            "android.intent.category.DEFAULT"
+          ],
+          "data": [
+            {
+              "mimeType": "text/plain"
+            },
+            {
+              "mimeType": "text/*"
+            }
+          ]
+        },
+        {
+          "action": "android.intent.action.SEND_MULTIPLE",
+          "category": [
+            "android.intent.category.DEFAULT"
+          ],
+          "data": [
+            {
+              "mimeType": "text/plain"
+            },
+            {
+              "mimeType": "text/*"
+            }
+          ]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -30,10 +61,19 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-share-intent"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "bd41b107-38fb-48fb-bd64-2be881bc5c80"
+      }
     }
   }
 }

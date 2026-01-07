@@ -9,6 +9,7 @@ import Colors from '../../constants/Colors';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from 'expo-router';
+import { getLocalTesserae, addLocalTessera, deleteLocalTessera, getLocalMosaics } from '../../lib/database';
 
 const RECENT_MOSAIC_KEY = 'recent_mosaic_id';
 
@@ -24,21 +25,27 @@ export default function TesseraeTab() {
   const colorScheme = useColorScheme();
 
   // Check selected mosaic from AsyncStorage
+  // Check selected mosaic from AsyncStorage
   const checkSelectedMosaic = useCallback(async () => {
-    if (!user) return;
     try {
       const storedId = await AsyncStorage.getItem(RECENT_MOSAIC_KEY);
       setCurrentMosaicId(storedId);
       if (storedId) {
-        const { data } = await supabase.from('mosaics').select('name').eq('id', storedId).single();
-        if (data) setCurrentMosaicName(data.name);
+        // Local DB에서 이름 조회
+        const localMosaics = getLocalMosaics();
+        const found = localMosaics.find((m: any) => m.id === storedId);
+        if (found) {
+          setCurrentMosaicName(found.name);
+        } else {
+          setCurrentMosaicName('Mosaic');
+        }
       } else {
         setCurrentMosaicName('All Items');
       }
     } catch (e) {
       console.error(e);
     }
-  }, [user]);
+  }, []);
 
   // Reload when tab is focused
   useFocusEffect(
@@ -48,34 +55,31 @@ export default function TesseraeTab() {
   );
 
   // Fetch tesserae when user or mosaic changes
+  // Fetch tesserae from Local DB
   useEffect(() => {
     const fetchData = async () => {
+      // 오프라인 상태에서도 로컬 데이터는 보여줘야 하므로 user 체크 완화 가능하지만
+      // 일단 user가 있어야 개인화된 데이터를 볼 수 있다고 가정
       if (!user) {
         if (!authLoading) setLoading(false);
         return;
       }
       setLoading(true);
       
-      let query = supabase
-        .from('tesserae')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (currentMosaicId) {
-        query = query.eq('mosaic_id', currentMosaicId);
-      }
-
-      const { data, error } = await query;
-      if (error) {
-        console.error(error);
-      } else {
-        setTesserae(data || []);
+      try {
+        const allData = getLocalTesserae();
+        const filtered = currentMosaicId 
+          ? allData.filter(t => t.mosaic_id === currentMosaicId)
+          : allData;
+        setTesserae(filtered);
+      } catch (e) {
+        console.error('Local fetch error:', e);
       }
       setLoading(false);
     };
     
     fetchData();
-  }, [user, currentMosaicId, authLoading]);
+  }, [user, currentMosaicId, authLoading]); // focusEffect가 없어도 로컬 데이터 갱신을 위해 dependency 추가 필요? useFocusEffect에서 fetchData 호출이 나음
 
   // Show loading while auth is initializing
   if (authLoading) {
@@ -110,25 +114,23 @@ export default function TesseraeTab() {
       newTessera.text = inputText;
     }
 
-    const { data, error } = await supabase
-      .from('tesserae')
-      .insert([newTessera])
-      .select()
-      .single();
-
-    if (error) {
-      Alert.alert('Error', error.message);
-    } else {
+    try {
+      const data = addLocalTessera(newTessera);
       setTesserae([data, ...tesserae]);
       setInputText('');
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
     }
     setIsCreating(false);
   };
 
   const deleteTessera = async (id: string) => {
-    const { error } = await supabase.from('tesserae').delete().eq('id', id);
-    if (!error) {
+    try {
+      deleteLocalTessera(id);
       setTesserae(tesserae.filter(t => t.id !== id));
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Error', 'Failed to delete');
     }
   };
 

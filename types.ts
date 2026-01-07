@@ -14,6 +14,7 @@ export type Tessera = {
   source_domain?: string | null;
   text?: string | null;
   note?: string | null;
+  image_url?: string | null;
   thumb_path?: string | null;
   thumb_width?: number;
   thumb_height?: number;
