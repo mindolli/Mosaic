@@ -23,37 +23,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.mosaic.app",
-      "intentFilters": [
-        {
-          "action": "android.intent.action.SEND",
-          "category": [
-            "android.intent.category.DEFAULT"
-          ],
-          "data": [
-            {
-              "mimeType": "text/plain"
-            },
-            {
-              "mimeType": "text/*"
-            }
-          ]
-        },
-        {
-          "action": "android.intent.action.SEND_MULTIPLE",
-          "category": [
-            "android.intent.category.DEFAULT"
-          ],
-          "data": [
-            {
-              "mimeType": "text/plain"
-            },
-            {
-              "mimeType": "text/*"
-            }
-          ]
-        }
-      ]
+      "package": "com.mosaic.app"
     },
     "web": {
       "bundler": "metro",

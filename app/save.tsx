@@ -1,7 +1,7 @@
 // 저장 화면 (S2)
 
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, ScrollView, Alert, Linking } from 'react-native';
+import { StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, ScrollView, Alert, Linking, Image } from 'react-native';
 import { Text, View } from '../components/Themed';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
@@ -31,11 +31,13 @@ function isValidUrl(text: string): boolean {
 export default function SaveScreen() {
   const { user, isLoading: authLoading } = useAuth();
   const colorScheme = useColorScheme();
-  const params = useLocalSearchParams<{ url?: string; text?: string }>();
+  const params = useLocalSearchParams<{ url?: string; text?: string; imageUrl?: string }>();
 
   // 공유로 받은 데이터
   const [sharedUrl, setSharedUrl] = useState<string>(params.url || '');
   const [sharedText, setSharedText] = useState<string>(params.text || '');
+  const [sharedImage, setSharedImage] = useState<string>(params.imageUrl || '');
+  
   const [note, setNote] = useState('');
   
   // Mosaic 선택
@@ -50,6 +52,7 @@ export default function SaveScreen() {
   const domain = sharedUrl ? extractDomain(sharedUrl) : null;
   const previewContent = sharedUrl || sharedText || '';
   const isUrl = isValidUrl(previewContent);
+  const hasContent = !!previewContent || !!sharedImage;
 
   useEffect(() => {
     if (user) {
@@ -119,7 +122,7 @@ export default function SaveScreen() {
   };
 
   const handleSave = async () => {
-    if (!user || !previewContent.trim()) {
+    if (!user || !hasContent) {
       Alert.alert('Error', 'Nothing to save');
       return;
     }
@@ -129,7 +132,6 @@ export default function SaveScreen() {
       return;
     }
 
-
     setIsSaving(true);
 
     const newTessera: Partial<Tessera> = {
@@ -137,6 +139,7 @@ export default function SaveScreen() {
       mosaic_id: selectedMosaicId,
       note: note.trim() || null,
       status: 'ready',
+      image_url: sharedImage || null,
     };
 
     if (isUrl) {
@@ -177,11 +180,11 @@ export default function SaveScreen() {
           <Text style={styles.cancelBtn}>Cancel</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Save</Text>
-        <TouchableOpacity onPress={handleSave} disabled={isSaving || !previewContent.trim()}>
+        <TouchableOpacity onPress={handleSave} disabled={isSaving || !hasContent}>
           {isSaving ? (
             <ActivityIndicator size="small" />
           ) : (
-            <Text style={[styles.saveBtn, !previewContent.trim() && styles.disabledText]}>Save</Text>
+            <Text style={[styles.saveBtn, !hasContent && styles.disabledText]}>Save</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -189,6 +192,10 @@ export default function SaveScreen() {
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         {/* Preview Card */}
         <View style={styles.previewCard}>
+          {sharedImage ? (
+            <Image source={{ uri: sharedImage }} style={styles.previewImage} resizeMode="cover" />
+          ) : null}
+
           {domain && (
             <View style={styles.domainBadge}>
               <FontAwesome name="globe" size={12} color="#666" />
@@ -196,13 +203,15 @@ export default function SaveScreen() {
             </View>
           )}
           
-          {isUrl ? (
-            <Text style={styles.urlText} numberOfLines={3}>{previewContent}</Text>
-          ) : (
-            <Text style={styles.textPreview} numberOfLines={5}>{previewContent}</Text>
-          )}
+          {previewContent ? (
+             isUrl ? (
+              <Text style={styles.urlText} numberOfLines={3}>{previewContent}</Text>
+            ) : (
+              <Text style={styles.textPreview} numberOfLines={5}>{previewContent}</Text>
+            )
+          ) : null}
           
-          {!previewContent && (
+          {!hasContent && (
             <View style={styles.emptyPreview}>
               <FontAwesome name="share-alt" size={32} color="#ccc" />
               <Text style={styles.emptyText}>Share content from another app</Text>
@@ -211,7 +220,7 @@ export default function SaveScreen() {
         </View>
 
         {/* Direct Input (if no shared content) */}
-        {!params.url && !params.text && (
+        {!params.url && !params.text && !params.imageUrl && (
           <View style={styles.inputSection}>
             <Text style={styles.sectionLabel}>URL or Text</Text>
             <TextInput
@@ -287,9 +296,9 @@ export default function SaveScreen() {
           <Text style={{ fontSize: 10, fontWeight: 'bold' }}>DEBUG INFO</Text>
           <Text style={{ fontSize: 10 }}>Params URL: {params.url?.slice(0, 50)}...</Text>
           <Text style={{ fontSize: 10 }}>Params Text: {params.text?.slice(0, 50)}...</Text>
+          <Text style={{ fontSize: 10 }}>Params Image: {!!params.imageUrl}</Text>
           <Text style={{ fontSize: 10 }}>User ID: {user?.id}</Text>
           <Text style={{ fontSize: 10 }}>Mosaic ID: {selectedMosaicId}</Text>
-          <Text style={{ fontSize: 10 }}>Shared URL State: {sharedUrl?.slice(0, 50)}...</Text>
         </View>
       </ScrollView>
     </View>
@@ -337,6 +346,13 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 25,
     minHeight: 120,
+  },
+  previewImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    marginBottom: 10,
+    backgroundColor: '#eee',
   },
   domainBadge: {
     flexDirection: 'row',
