@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, FlatList, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, FlatList, TextInput, TouchableOpacity, ActivityIndicator, Alert, Image } from 'react-native';
 import { Text, View } from '../../components/Themed';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
@@ -24,7 +24,8 @@ export default function TesseraeTab() {
 
   const colorScheme = useColorScheme();
 
-  // Check selected mosaic from AsyncStorage
+  // 공유 인텐트는 이제 _layout.tsx의 RootLayoutNav에서 처리합니다
+
   // Check selected mosaic from AsyncStorage
   const checkSelectedMosaic = useCallback(async () => {
     try {
@@ -43,43 +44,44 @@ export default function TesseraeTab() {
         setCurrentMosaicName('All Items');
       }
     } catch (e) {
-      console.error(e);
+      console.error('[Home] Failed to check mosaic:', e);
     }
   }, []);
 
-  // Reload when tab is focused
+  // 데이터 로드 함수
+  const loadTesserae = useCallback(() => {
+    if (!user) return;
+    
+    try {
+      const allData = getLocalTesserae();
+      const filtered = currentMosaicId 
+        ? allData.filter(t => t.mosaic_id === currentMosaicId)
+        : allData;
+      setTesserae(filtered);
+    } catch (e) {
+      console.error('[Home] Failed to load tesserae:', e);
+    }
+    setLoading(false);
+  }, [user, currentMosaicId]);
+
+  // 탭 포커스 시 데이터 갱신 (저장 후 돌아왔을 때 새 데이터 반영)
   useFocusEffect(
     useCallback(() => {
+      console.log('[Home] Screen focused, reloading data...');
       checkSelectedMosaic();
-    }, [checkSelectedMosaic])
+      loadTesserae();
+    }, [checkSelectedMosaic, loadTesserae])
   );
 
-  // Fetch tesserae when user or mosaic changes
-  // Fetch tesserae from Local DB
+  // user나 mosaic 변경 시 데이터 다시 로드
   useEffect(() => {
-    const fetchData = async () => {
-      // 오프라인 상태에서도 로컬 데이터는 보여줘야 하므로 user 체크 완화 가능하지만
-      // 일단 user가 있어야 개인화된 데이터를 볼 수 있다고 가정
-      if (!user) {
-        if (!authLoading) setLoading(false);
-        return;
-      }
-      setLoading(true);
-      
-      try {
-        const allData = getLocalTesserae();
-        const filtered = currentMosaicId 
-          ? allData.filter(t => t.mosaic_id === currentMosaicId)
-          : allData;
-        setTesserae(filtered);
-      } catch (e) {
-        console.error('Local fetch error:', e);
-      }
-      setLoading(false);
-    };
-    
-    fetchData();
-  }, [user, currentMosaicId, authLoading]); // focusEffect가 없어도 로컬 데이터 갱신을 위해 dependency 추가 필요? useFocusEffect에서 fetchData 호출이 나음
+    if (!user) {
+      if (!authLoading) setLoading(false);
+      return;
+    }
+    setLoading(true);
+    loadTesserae();
+  }, [user, currentMosaicId, authLoading, loadTesserae]);
 
   // Show loading while auth is initializing
   if (authLoading) {
@@ -136,8 +138,19 @@ export default function TesseraeTab() {
 
   const renderItem = ({ item }: { item: Tessera }) => (
     <View style={styles.card}>
+      {/* 이미지가 있으면 표시 */}
+      {item.image_url && (
+        <Image 
+          source={{ uri: item.image_url }} 
+          style={styles.cardImage} 
+          resizeMode="cover"
+        />
+      )}
+      
       <View style={styles.cardHeader}>
-        <Text style={styles.domain}>{item.source_domain || 'Note'}</Text>
+        <Text style={styles.domain}>
+          {item.image_url ? 'Image' : (item.source_domain || 'Note')}
+        </Text>
         <TouchableOpacity onPress={() => deleteTessera(item.id)}>
           <FontAwesome name="times" size={14} color="#ccc" />
         </TouchableOpacity>
@@ -259,6 +272,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     marginBottom: 15,
+    overflow: 'hidden',
+  },
+  cardImage: {
+    width: '100%',
+    height: 100,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: '#eee',
   },
   cardHeader: {
     flexDirection: 'row',

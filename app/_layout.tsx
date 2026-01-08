@@ -7,7 +7,7 @@ import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import { ShareIntentProvider, useShareIntent } from 'expo-share-intent';
 import { initDatabase } from '../lib/database';
-import { useShareIntentListener } from '../lib/useShareIntentListener';
+// 공유 인텐트는 이제 홈 화면(index.tsx)에서 직접 처리합니다
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -52,14 +52,74 @@ export default function RootLayout() {
 }
 
 import { AuthProvider } from '../lib/auth';
+import { useShareIntentContext } from 'expo-share-intent';
+import { Platform } from 'react-native';
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
+  const router = useRouter();
   
-  // Handle incoming share intents using our custom hook
-  useShareIntentListener();
-
-  // 기존 초기화 로직 등은 유지...
+  // 🔄 공유 인텐트 처리 (라우팅 레벨에서 가장 먼저 처리)
+  const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext();
+  
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    
+    // 디버깅 로그
+    console.log('[SHARE]', {
+      has: hasShareIntent,
+      intent: shareIntent,
+    });
+    
+    if (hasShareIntent && shareIntent) {
+      const intent = shareIntent as any;
+      
+      // 데이터 추출
+      let url = '';
+      let text = '';
+      let imageUrl = '';
+      
+      // URL/Text
+      if (intent.webUrl) {
+        url = intent.webUrl;
+      }
+      
+      // intent.text 또는 intent.value에서 텍스트 추출
+      const rawText = intent.text || intent.value || '';
+      if (rawText) {
+        const urlMatch = rawText.match(/https?:\/\/[^\s]+/);
+        if (urlMatch && !url) {
+          url = urlMatch[0];
+          text = rawText.replace(url, '').trim();
+        } else if (!url) {
+          text = rawText;
+        }
+      }
+      
+      // 이미지
+      if (intent.files && intent.files.length > 0) {
+        const file = intent.files[0];
+        if (file.mimeType?.startsWith('image/')) {
+          imageUrl = file.contentUri || file.path || '';
+        }
+      }
+      
+      console.log('[SHARE] Extracted:', { url, text, imageUrl: !!imageUrl });
+      
+      // /save 화면으로 이동
+      if (url || text || imageUrl) {
+        console.log('[SHARE] Navigating to /save...');
+        router.replace({
+          pathname: '/save',
+          params: { url, text, imageUrl }
+        });
+        resetShareIntent();
+      } else {
+        console.warn('[SHARE] No valid data, resetting');
+        resetShareIntent();
+      }
+    }
+  }, [hasShareIntent, shareIntent, resetShareIntent, router]);
 
   return (
     <AuthProvider>

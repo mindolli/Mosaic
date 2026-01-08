@@ -11,6 +11,7 @@ import { useColorScheme } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { addLocalTessera, getLocalMosaics, saveLocalMosaics } from '../lib/database';
+import { strings } from '../constants/strings';
 
 const RECENT_MOSAIC_KEY = 'recent_mosaic_id';
 
@@ -122,42 +123,61 @@ export default function SaveScreen() {
   };
 
   const handleSave = async () => {
-    if (!user || !hasContent) {
-      Alert.alert('Error', 'Nothing to save');
+    if (!user) {
+      Alert.alert(strings.save.loginRequired, strings.save.loginRequiredMessage);
       return;
     }
-
-    if (!selectedMosaicId) {
-      Alert.alert('Error', 'Please select a Mosaic to save to.');
+    
+    if (!hasContent) {
+      Alert.alert(strings.save.noContent, strings.save.noContentMessage);
       return;
     }
 
     setIsSaving(true);
 
-    const newTessera: Partial<Tessera> = {
-      user_id: user.id,
-      mosaic_id: selectedMosaicId,
-      note: note.trim() || null,
-      status: 'ready',
-      image_url: sharedImage || null,
-    };
-
-    if (isUrl) {
-      newTessera.source_url = previewContent;
-      newTessera.source_domain = extractDomain(previewContent);
-      newTessera.text = '';
-    } else {
-      newTessera.text = previewContent;
-    }
-
     try {
+      // Mosaic가 없으면 자동 생성
+      let targetMosaicId = selectedMosaicId;
+      if (!targetMosaicId) {
+        console.log('[Save] No mosaic selected, creating Inbox...');
+        const { addLocalMosaic } = await import('../lib/database');
+        const newMosaic = addLocalMosaic('Inbox', user.id);
+        targetMosaicId = newMosaic.id;
+        setSelectedMosaicId(newMosaic.id);
+        setMosaics([newMosaic, ...mosaics]);
+        await AsyncStorage.setItem(RECENT_MOSAIC_KEY, newMosaic.id);
+      }
+
+      const newTessera: Partial<Tessera> = {
+        user_id: user.id,
+        mosaic_id: targetMosaicId,
+        note: note.trim() || null,
+        status: 'ready',
+        image_url: sharedImage || null,
+      };
+
+      if (isUrl) {
+        newTessera.source_url = previewContent;
+        newTessera.source_domain = extractDomain(previewContent);
+        newTessera.text = '';
+      } else {
+        newTessera.text = previewContent;
+      }
+
       addLocalTessera(newTessera);
+      console.log('[Save] Saved successfully:', newTessera);
+      
       // 저장 성공 → 홈으로 이동
       router.replace('/');
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to save locally');
+      console.error('[Save] Failed to save:', e);
+      Alert.alert(
+        strings.save.saveFailed, 
+        e.message || strings.save.saveFailedMessage
+      );
+    } finally {
+      setIsSaving(false);
     }
-    setIsSaving(false);
   };
 
   const handleCancel = () => {
