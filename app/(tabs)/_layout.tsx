@@ -44,7 +44,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="two"
+        name="mosaics"
         options={{
           title: 'Mosaics',
           tabBarIcon: ({ color }) => <TabBarIcon name="th-large" color={color} />,
